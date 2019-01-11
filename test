@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import MySQLdb, sys
+
+# test
+sql = "select COUNT(INCIDENT_ID) from hate_crime;"
+
+# get data to make form
+columnssql = "SELECT COLUMN_NAME from INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'hate_crimes' and TABLE_NAME = 'hate_crime';"
+autofill_columns = ['STATE_NAME',
+					'OFFENDER_RACE,'
+					'AGENCY_TYPE_NAME',
+					'STATE_NAME',
+					'POPULATION_GROUP_DESC',
+					'OFFENDER_RACE',
+					'OFFENDER_ETHNICITY',
+					'OFFENSE_NAME ',
+
+
+					]
+# todo:
+# break location_name out, separate all by / and ; and make it true/false for each
+# break offense_name out, separate all by / and ; and make it true/false for each
+# break bias_desc out, separate all by / and ; and make it true/false for each
+# break victim_types out, separate all by / and ; and make it true/false for each
+
+
+# convert date to sql date data
+
+
+autofill_sql = [];
+for term in autofill_columns:
+	autofill_sql.append('SELECT DISTINCT ' + term + ' FROM hate_crime;')
+
+con = MySQLdb.Connect(host="silo.cs.indiana.edu", port=45188, user="hate_crimes", passwd="hate_crimes", db="hate_crimes")
+cursor = con.cursor() 
+cursor.execute(sql)
+results1 = cursor.fetchall()
+
+
+
+cursor.execute(columnssql)
+results2 = cursor.fetchall()
+
+# (message, n1, n2, m1, m2) = Results[0]
+con.close() 
+print("Content-type: text/html\n\n")
+print("There are ")
+print(results1[0][0])
+print(" bias crimes in the dataset")
+print("columns are:")
+for result in results2:
+	print("<br>")
+	print(result[0])
