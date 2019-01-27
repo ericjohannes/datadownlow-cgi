@@ -2,6 +2,8 @@
 
 import MySQLdb, sys
 
+import pandas as pd
+from sqlalchemy import create_engine
 # test
 sql = "select COUNT(INCIDENT_ID) from hate_crime;"
 
@@ -32,7 +34,7 @@ autofill_sql = [];
 for term in autofill_columns:
 	autofill_sql.append('SELECT DISTINCT ' + term + ' FROM hate_crime;')
 
-con = MySQLdb.Connect(host="silo.cs.indiana.edu", port=45188, user="hate_crimes", passwd="hate_crimes", db="hate_crimes")
+con = MySQLdb.Connect(host="silo.cs.indiana.edu", port=45188, user="someuser", passwd="somepasword", db="hate_crimes")
 cursor = con.cursor() 
 cursor.execute(sql)
 results1 = cursor.fetchall()
@@ -42,13 +44,20 @@ results1 = cursor.fetchall()
 cursor.execute(columnssql)
 results2 = cursor.fetchall()
 
+engine = create_engine('mysql://hc_admin1:ThinkPadacerDELL@silo.cs.indiana.edu:45188/hate_crimes')
+connection = engine.connect()
+
 # (message, n1, n2, m1, m2) = Results[0]
 con.close() 
-print("Content-type: text/html\n\n")
+print("Content-type: application/json\n\n")
 print("There are ")
 print(results1[0][0])
 print(" bias crimes in the dataset")
 print("columns are:")
-for result in results2:
-	print("<br>")
-	print(result[0])
+# for result in results2:
+# 	print("<br>")
+# 	print(result[0])
+
+sql = "SELECT COLUMN_NAME from INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'hate_crimes' and TABLE_NAME = 'hate_crime';"
+df = pd.read_sql(sql, con=engine)
+print(df.to_json())

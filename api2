@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import sys, cgi, json, cgitb
+import pandas as pd
+from sqlalchemy import create_engine
+from datetime import datetime
+
+cgitb.enable()
+
+# start new stuff 
+page_data = cgi.FieldStorage()
+
+print("Content-type: text/html\n\n")
+# print(page_data.keys())
+
+data = json.loads(page_data.getvalue("data"))
+
+print(data['type'])
+
+# for key in page_data.keys():
+#         variable = str(key)
+#         value = str(page_data.getvalue(variable))
+
+# # # if page_data.has_key("type"):
+# if page_data["type"] == "test":
+# 	print("it worked")
+# else:
+# 	print("failure")
+
+
+

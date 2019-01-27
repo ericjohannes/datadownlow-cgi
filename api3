@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+# doesn't work
+
+import sys, cgi, json, cgitb
+import pandas as pd
+from sqlalchemy import create_engine
+from datetime import datetime
+from flask import Flask, request
+
+app = Flask(__name__)
+
+@app.route('/', methods=['POST'])
+def result():
+    print("Content-type: text/html\n\n")
+    # print(request.form['data']) # should display 'bar'
+    return 'Received !' # response to your request.

@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+import sys, cgi, urllib, json
+import pandas as pd
+from sqlalchemy import create_engine
+from datetime import datetime
+
+dt = datetime.now()
+now = dt.microsecond
+now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
+js_file = "results/" + str(now) + ".csv"
+# create engine
+engine = create_engine('mysql://someuser:somepassword@someurl:someport/somedb')
+
+connection = engine.connect()
+query_sql = ""
+# sql statements
+
+# start new stuff 
+page_data = cgi.FieldStorage()
+data = json.loads(page_data.getvalue("data"))
+request_type = data['type']
+
+autofill_columns = ['STATE_NAME',
+                    'OFFENDER_RACE,'
+                    'AGENCY_TYPE_NAME',
+                    'STATE_NAME',
+                    'POPULATION_GROUP_DESC',
+                    'OFFENDER_RACE',
+                    'OFFENDER_ETHNICITY',
+                    'OFFENSE_NAME ',
+                    ]
+
+four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
+
+
+def jsonify(somestring):
+    new_string = somestring[1:]
+    new_string = new_string[:-1]
+    new_string += ","
+    return new_string
+
+def loop_tables(tables, data_obj):
+    new_sql = ''
+    for table in tables:
+        if len(data_obj[table.upper()]) > 0:
+            # print(data_obj[table.upper()])
+            new_sql += "WHERE " + table.upper() + " = "
+            sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
+            df = pd.read_sql(sql, con=engine)
+            new_sql += loop_data(table, data_obj, df)
+            return new_sql
+
+def loop_data(column, data_obj, some_df):
+    new_sql = ''           
+    for desc in data_obj[column.upper()]:
+        big_table = column.upper()
+        row = some_df[some_df[big_table] == desc][big_table]
+        term = row.iloc[0]
+        new_sql += " \'" + term  + "\'"
+        return new_sql
+
+
+if request_type == "start":
+    # get all the data to start
+    print("Content-type: text/html\n\n")
+    json_str = "{"
+    sql = "SELECT COLUMN_NAME from INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'hate_crimes' and TABLE_NAME = 'hate_crime';"
+    df = pd.read_sql(sql, con=engine)
+    json_str += jsonify(df.to_json())
+    for column in autofill_columns:
+        sql = "SELECT DISTINCT " + column + " FROM hate_crime1;"
+        df = pd.read_sql(sql, con=engine)
+        json_str += jsonify(df.to_json())
+    for table in four_tables:
+        sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
+        df = pd.read_sql(sql, con=engine)
+        json_str += jsonify(df.to_json())
+    json_str = json_str[:-1] + "}"
+    print(json_str)
+elif request_type == "test": 
+    sql = "select * from hate_crime1 limit 20"
+# main function of api!!!
+elif request_type == "filter":
+    # start off right
+    print("Content-type: text/html\n\n")
+    # init query string
+    query_sql += "select * from hate_crime1 "
+    query_sql += loop_tables(four_tables, data)
+    query_sql += " LIMIT 1000"
+else:
+    sql = "select COUNT(INCIDENT_ID) as COUNT from hate_crime1;"
+
+# print(query_sql)
+if request_type != "start":
+    # query_sql += " LIMIT 1000"
+    df = pd.read_sql(query_sql, con=engine)
+    df.to_csv(now_file)
+
+#     # print("Content-type: text/html\n\n")
+#     # print(page_data.getvalue("type"))
+    print(js_file)
