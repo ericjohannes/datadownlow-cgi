@@ -10,7 +10,7 @@ now = dt.microsecond
 now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
 js_file = "results/" + str(now) + ".csv"
 # create engine
-engine = create_engine('mysql://someuser:somepassword@someurl:someport/somedb')
+engine = create_engine('mysql://user:pw@url:port/db')
 
 connection = engine.connect()
 query_sql = ""
@@ -22,9 +22,7 @@ data = json.loads(page_data.getvalue("data"))
 request_type = data['type']
 
 autofill_columns = ['STATE_NAME',
-                    'OFFENDER_RACE,'
                     'AGENCY_TYPE_NAME',
-                    'STATE_NAME',
                     'POPULATION_GROUP_DESC',
                     'OFFENDER_RACE',
                     'OFFENDER_ETHNICITY',
@@ -33,32 +31,66 @@ autofill_columns = ['STATE_NAME',
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
 
-
 def jsonify(somestring):
     new_string = somestring[1:]
     new_string = new_string[:-1]
     new_string += ","
     return new_string
 
-def loop_tables(tables, data_obj):
-    new_sql = ''
-    for table in tables:
-        if len(data_obj[table.upper()]) > 0:
-            # print(data_obj[table.upper()])
-            new_sql += "WHERE " + table.upper() + " = "
-            sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
-            df = pd.read_sql(sql, con=engine)
-            new_sql += loop_data(table, data_obj, df)
-            return new_sql
+def loop_tables(table, data_obj):
+    # new_sql = ''
+    if len(data_obj[table.upper()]) > 0:
+        table_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + table.upper() + " IN ("
+        sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(table, data_obj, df)
+        table_sql += new_bit[:-2] + ")"
+        table_df = pd.read_sql(table_sql, con=engine)
+        return set(table_df.INCIDENT_ID)
+    else:
+        return set()
+
+def loop_columns(column, data_obj):
+    if len(data_obj[column.upper()]) > 0:
+        column_sql = "SELECT INCIDENT_ID FROM hate_crime1 WHERE " + column.upper() + " IN ("
+        # new_sql += "WHERE " + table.upper() + " "
+        sql = "SELECT DISTINCT " + column.upper() + " FROM hate_crime1;"
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(column, data_obj, df)
+        column_sql += new_bit[:-2] + ")"
+        column_df = pd.read_sql(column_sql, con=engine)
+        return set(column_df.INCIDENT_ID)
+    else:
+        return set()
+
+def loop_stuff(column, data_obj):
+    table = ''
+    if column in four_tables:
+        table = column
+    else:
+        table = 'hate_crime1'
+    print(column)
+    if len(data_obj[column.upper()]) > 0:
+        column_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + column.upper() + " IN ("
+        sql = "SELECT DISTINCT " + column.upper() + " FROM hate_crime1;"
+        # print(column_sql) # looks ok
+        # print(sql) # looks ok
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(column, data_obj, df)
+        column_sql += new_bit[:-2] + ")"
+        column_df = pd.read_sql(column_sql, con=engine)
+        return set(column_df.INCIDENT_ID)
+    else:
+        return set()
 
 def loop_data(column, data_obj, some_df):
-    new_sql = ''           
+    new_sql = ''     
     for desc in data_obj[column.upper()]:
         big_table = column.upper()
         row = some_df[some_df[big_table] == desc][big_table]
         term = row.iloc[0]
-        new_sql += " \'" + term  + "\'"
-        return new_sql
+        new_sql += " \'" + term  + "\', "
+    return new_sql
 
 
 if request_type == "start":
@@ -85,18 +117,32 @@ elif request_type == "filter":
     # start off right
     print("Content-type: text/html\n\n")
     # init query string
-    query_sql += "select * from hate_crime1 "
-    query_sql += loop_tables(four_tables, data)
-    query_sql += " LIMIT 1000"
+    query_sql += "select * from hate_crime1 WHERE INCIDENT_ID IN ("
+    table_sets = []
+    columns_list = autofill_columns[:-1] + four_tables
+    # print(len(columns_list)) # prints 10 which is good
+    for table in columns_list: # loop through four separate tables to get ids of matching records
+        # print(table) #prints the 10 names OK
+        new_set = loop_stuff(table, data)
+        print(len(new_set))
+        if len(new_set) > 0:
+            table_sets.append(new_set)
+    id_set = set.intersection(*table_sets)
+    print(len(id_set))
+    for id in id_set:
+        query_sql += " \'" + str(id)  + "\', "
+    query_sql = query_sql[:-2] + " ) LIMIT 1000"
+    print(query_sql)
 else:
+    print('test')
     sql = "select COUNT(INCIDENT_ID) as COUNT from hate_crime1;"
 
 # print(query_sql)
-if request_type != "start":
-    # query_sql += " LIMIT 1000"
-    df = pd.read_sql(query_sql, con=engine)
-    df.to_csv(now_file)
+# if request_type != "start":
+#     # query_sql += " LIMIT 1000"
+#     df = pd.read_sql(query_sql, con=engine)
+#     df.to_csv(now_file)
 
-#     # print("Content-type: text/html\n\n")
-#     # print(page_data.getvalue("type"))
-    print(js_file)
+# #     # print("Content-type: text/html\n\n")
+# #     # print(page_data.getvalue("type"))
+#     print(js_file)
