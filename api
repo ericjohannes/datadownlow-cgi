@@ -69,7 +69,7 @@ def loop_stuff(column, data_obj):
         table = column
     else:
         table = 'hate_crime1'
-    print(column)
+    # print(column)
     if len(data_obj[column.upper()]) > 0:
         column_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + column.upper() + " IN ("
         sql = "SELECT DISTINCT " + column.upper() + " FROM hate_crime1;"
@@ -124,25 +124,25 @@ elif request_type == "filter":
     for table in columns_list: # loop through four separate tables to get ids of matching records
         # print(table) #prints the 10 names OK
         new_set = loop_stuff(table, data)
-        print(len(new_set))
+        # print(len(new_set))
         if len(new_set) > 0:
             table_sets.append(new_set)
     id_set = set.intersection(*table_sets)
-    print(len(id_set))
+    # print(len(id_set))
     for id in id_set:
         query_sql += " \'" + str(id)  + "\', "
     query_sql = query_sql[:-2] + " ) LIMIT 1000"
-    print(query_sql)
+    # print(query_sql)
 else:
     print('test')
     sql = "select COUNT(INCIDENT_ID) as COUNT from hate_crime1;"
 
 # print(query_sql)
-# if request_type != "start":
-#     # query_sql += " LIMIT 1000"
-#     df = pd.read_sql(query_sql, con=engine)
-#     df.to_csv(now_file)
+if request_type != "start":
+    # query_sql += " LIMIT 1000"
+    df = pd.read_sql(query_sql, con=engine)
+    df.to_csv(now_file)
 
-# #     # print("Content-type: text/html\n\n")
-# #     # print(page_data.getvalue("type"))
-#     print(js_file)
+#     # print("Content-type: text/html\n\n")
+#     # print(page_data.getvalue("type"))
+    print(js_file)
