@@ -10,7 +10,7 @@ now = dt.microsecond
 now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
 js_file = "results/" + str(now) + ".csv"
 # create engine
-engine = create_engine('mysql://user:pw@url:port/db')
+engine = create_engine('mysql://hc_admin1:ThinkPadacerDELL@silo.cs.indiana.edu:45188/hate_crimes')
 
 connection = engine.connect()
 query_sql = ""
@@ -26,7 +26,10 @@ autofill_columns = ['STATE_NAME',
                     'POPULATION_GROUP_DESC',
                     'OFFENDER_RACE',
                     'OFFENDER_ETHNICITY',
-                    'OFFENSE_NAME ',
+                    'PUB_AGENCY_NAME',
+                    'PUB_AGENCY_UNIT',
+                    'DATA_YEAR',
+                    # 'OFFENSE_NAME ',
                     ]
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
