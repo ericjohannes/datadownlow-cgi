@@ -7,7 +7,7 @@ from datetime import datetime
 
 dt = datetime.now()
 now = dt.microsecond
-now_file = "../../htdocs/datadownlow-dev/results/" + str(now) + ".csv"
+now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
 js_file = "results/" + str(now) + ".csv"
 # create engine
 f = open('secure/secure')
@@ -19,7 +19,6 @@ use_db = f.readline().rstrip()
 f.close()
 
 engine = create_engine('mysql://' + user + ':' + pw + '@' + sql_url + ':' + sql_port + '/' + use_db)
-
 
 connection = engine.connect()
 query_sql = ""
@@ -35,10 +34,7 @@ autofill_columns = ['STATE_NAME',
                     'POPULATION_GROUP_DESC',
                     'OFFENDER_RACE',
                     'OFFENDER_ETHNICITY',
-                    'PUB_AGENCY_NAME',
-                    'PUB_AGENCY_UNIT',
-                    'DATA_YEAR',
-                    # 'OFFENSE_NAME ',
+                    'OFFENSE_NAME ',
                     ]
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
