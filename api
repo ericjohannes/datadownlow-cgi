@@ -149,7 +149,7 @@ else:
 if request_type != "start":
     # query_sql += " LIMIT 1000"
     df = pd.read_sql(query_sql, con=engine)
-    df.to_csv(now_file)
+    df.to_csv(now_file, index=False)
 
 #     # print("Content-type: text/html\n\n")
 #     # print(page_data.getvalue("type"))
