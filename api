@@ -20,6 +20,7 @@ f.close()
 
 engine = create_engine('mysql://' + user + ':' + pw + '@' + sql_url + ':' + sql_port + '/' + use_db)
 
+
 connection = engine.connect()
 query_sql = ""
 # sql statements
@@ -34,7 +35,10 @@ autofill_columns = ['STATE_NAME',
                     'POPULATION_GROUP_DESC',
                     'OFFENDER_RACE',
                     'OFFENDER_ETHNICITY',
-                    'OFFENSE_NAME ',
+                    'PUB_AGENCY_NAME',
+                    'PUB_AGENCY_UNIT',
+                    'DATA_YEAR',
+                    # 'OFFENSE_NAME ',
                     ]
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
