@@ -1,0 +1,9 @@
+# one example
+sql = 'select * from hate_crime1 WHERE STATE_NAME = %(state)s'
+params = {'state': 'Indiana'}
+df = pd.read_sql(sql, con=engine, params=params)
+
+#Another example
+params = {"y1": 2005, "y2":2006}
+sql = "select * from hate_crime1 WHERE DATA_YEAR BETWEEN %(y1)s AND %(y2)s"
+df = pd.read_sql(sql, con=engine, params=params)

@@ -7,7 +7,7 @@ from datetime import datetime
 
 dt = datetime.now()
 now = dt.microsecond
-now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
+now_file = "../../htdocs/datadownlow-dev/results/" + str(now) + ".csv"
 js_file = "results/" + str(now) + ".csv"
 # create engine
 f = open('secure/secure')
@@ -39,6 +39,7 @@ autofill_columns = ['STATE_NAME',
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
 
+main_table = 'hate_crime2'
 def jsonify(somestring):
     new_string = somestring[1:]
     new_string = new_string[:-1]
@@ -60,9 +61,9 @@ def loop_tables(table, data_obj):
 
 def loop_columns(column, data_obj):
     if len(data_obj[column.upper()]) > 0:
-        column_sql = "SELECT INCIDENT_ID FROM hate_crime1 WHERE " + column.upper() + " IN ("
+        column_sql = "SELECT INCIDENT_ID FROM " + main_table + " WHERE " + column.upper() + " IN ("
         # new_sql += "WHERE " + table.upper() + " "
-        sql = "SELECT DISTINCT " + column.upper() + " FROM hate_crime1;"
+        sql = "SELECT DISTINCT " + column.upper() + " FROM " + main_table + ";"
         df = pd.read_sql(sql, con=engine)
         new_bit = loop_data(column, data_obj, df)
         column_sql += new_bit[:-2] + ")"
@@ -76,11 +77,11 @@ def loop_stuff(column, data_obj):
     if column in four_tables:
         table = column
     else:
-        table = 'hate_crime1'
+        table = main_table
     # print(column)
     if len(data_obj[column.upper()]) > 0:
         column_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + column.upper() + " IN ("
-        sql = "SELECT DISTINCT " + column.upper() + " FROM hate_crime1;"
+        sql = "SELECT DISTINCT " + column.upper() + " FROM " + main_table + ";"
         # print(column_sql) # looks ok
         # print(sql) # looks ok
         df = pd.read_sql(sql, con=engine)
@@ -109,7 +110,7 @@ if request_type == "start":
     df = pd.read_sql(sql, con=engine)
     json_str += jsonify(df.to_json())
     for column in autofill_columns:
-        sql = "SELECT DISTINCT " + column + " FROM hate_crime1;"
+        sql = "SELECT DISTINCT " + column + " FROM " + main_table + ";"
         df = pd.read_sql(sql, con=engine)
         json_str += jsonify(df.to_json())
     for table in four_tables:
@@ -119,33 +120,52 @@ if request_type == "start":
     json_str = json_str[:-1] + "}"
     print(json_str)
 elif request_type == "test": 
-    sql = "select * from hate_crime1 limit 20"
+    sql = "select * from " + main_table + " limit 20"
 # main function of api!!!
 elif request_type == "filter":
     # start off right
     print("Content-type: text/html\n\n")
     # init query string
-    query_sql += "select * from hate_crime1 WHERE INCIDENT_ID IN ("
+    query_sql += "select * from " + main_table + " "
     table_sets = []
     columns_list = autofill_columns[:-1] + four_tables
+    column_flag = False
+    date_flag = False
+    for col in columns_list:
+        if len(data[col.upper()]):
+            column_flag = True
+            break
     # print(len(columns_list)) # prints 10 which is good
-    for table in columns_list: # loop through four separate tables to get ids of matching records
-        # print(table) #prints the 10 names OK
-        new_set = loop_stuff(table, data)
-        # print(len(new_set))
-        if len(new_set) > 0:
-            table_sets.append(new_set)
-    id_set = set.intersection(*table_sets)
-    # print(len(id_set))
-    for id in id_set:
-        query_sql += " \'" + str(id)  + "\', "
-    query_sql = query_sql[:-2] + " ) LIMIT 1000"
-    # print(query_sql)
+    if column_flag:
+        query_sql += "WHERE INCIDENT_ID IN ("
+        for table in columns_list: # loop through four separate tables to get ids of matching records
+            # print(table) #prints the 10 names OK
+            new_set = loop_stuff(table, data)
+            # print(len(new_set))
+            if len(new_set) > 0:
+                table_sets.append(new_set)
+        id_set = set.intersection(*table_sets)
+        # print(len(id_set))
+        for id in id_set:
+            query_sql += " \'" + str(id)  + "\', "
+        query_sql = query_sql[:-2] + " ) "
+    if len(data['START_DATE']) or len(data['END_DATE']):
+        date_flag = True
+        if column_flag:
+            query_sql = query_sql + " AND"
+        else:
+            query_sql = query_sql + " WHERE"
+        if len(data['START_DATE']) and len(data['END_DATE']):
+            query_sql = query_sql + " INCI_DT_CLEAN BETWEEN '" + data['START_DATE'] + "' AND '" + data['END_DATE'] + "' "
+        elif len(data['START_DATE']):
+            query_sql = query_sql + " INCI_DT_CLEAN >= '" + data['START_DATE'] + "' "
+        elif len(data['END_DATE']):
+            query_sql = query_sql + " INCI_DT_CLEAN <= '" + data['END_DATE'] + "' "
+    query_sql = query_sql + " LIMIT 1000"
 else:
     print('test')
-    sql = "select COUNT(INCIDENT_ID) as COUNT from hate_crime1;"
+    sql = "select COUNT(INCIDENT_ID) as COUNT from " + main_table + ";"
 
-# print(query_sql)
 if request_type != "start":
     # query_sql += " LIMIT 1000"
     df = pd.read_sql(query_sql, con=engine)
