@@ -7,3 +7,27 @@ df = pd.read_sql(sql, con=engine, params=params)
 params = {"y1": 2005, "y2":2006}
 sql = "select * from hate_crime1 WHERE DATA_YEAR BETWEEN %(y1)s AND %(y2)s"
 df = pd.read_sql(sql, con=engine, params=params)
+
+# list example
+sql = "select * from hate_crime1 WHERE DATA_YEAR BETWEEN %(params[0])s AND %(params[1])s"
+
+params = ['2008-02-02T05:00:00.000Z','2008-02-10T05:00:00.000Z']
+
+# dict example
+sql = "select * from hate_crime2 WHERE INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s"
+
+params = {'date1': '2008-02-02T05:00:00.000Z','date2':'2008-02-10T05:00:00.000Z'}
+
+# this works!!!!
+sql = "select * from hate_crime2 WHERE INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s"
+
+params = {'date1': '2008-02-02','date2':'2008-02-10'}
+
+#this doesn't work
+formatstr = '%Y-%m-%dT:%H:%M:%SZ'
+
+# parsing dates
+params = {'date1': pd.to_datetime('2008-02-02T05:00:00.000Z').date(),'date2': pd.to_datetime('2008-02-10T05:00:00.000Z').date()}
+sql = "select * from hate_crime2 WHERE INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s"
+
+

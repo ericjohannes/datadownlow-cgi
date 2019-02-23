@@ -36,6 +36,8 @@ autofill_columns = ['STATE_NAME',
                     'OFFENDER_ETHNICITY',
                     'OFFENSE_NAME ',
                     ]
+params = {}
+
 
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
 
@@ -156,11 +158,15 @@ elif request_type == "filter":
         else:
             query_sql = query_sql + " WHERE"
         if len(data['START_DATE']) and len(data['END_DATE']):
-            query_sql = query_sql + " INCI_DT_CLEAN BETWEEN '" + data['START_DATE'] + "' AND '" + data['END_DATE'] + "' "
+            params['date1'] = pd.to_datetime(data['START_DATE']).date()
+            params['date2'] = pd.to_datetime(data['END_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s "
         elif len(data['START_DATE']):
-            query_sql = query_sql + " INCI_DT_CLEAN >= '" + data['START_DATE'] + "' "
+            params['date1'] = pd.to_datetime(data['START_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN >= %(date1)s "
         elif len(data['END_DATE']):
-            query_sql = query_sql + " INCI_DT_CLEAN <= '" + data['END_DATE'] + "' "
+            params['date2'] = pd.to_datetime(data['END_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN <= %(date2)s "
     query_sql = query_sql + " LIMIT 1000"
 else:
     print('test')
@@ -168,7 +174,10 @@ else:
 
 if request_type != "start":
     # query_sql += " LIMIT 1000"
-    df = pd.read_sql(query_sql, con=engine)
+    if(date_flag):
+        df = pd.read_sql(query_sql, con=engine, params=params)
+    else:
+        df = pd.read_sql(query_sql, con=engine)
     df.to_csv(now_file, index=False)
 
 #     # print("Content-type: text/html\n\n")
