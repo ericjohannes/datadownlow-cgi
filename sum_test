@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+
+import sys, cgi, urllib, json
+import pandas as pd
+from sqlalchemy import create_engine
+from datetime import datetime
+
+# have data of this format:
+data = {"AGENCY_TYPE_NAME":[],
+    "BIAS_DESC":["Anti-White"],
+    "LOCATION_NAME":[],
+    "OFFENDER_ETHNICITY":[],
+    "OFFENDER_RACE":[],
+    "OFFENSE_NAME":["Aggravated Assault"],
+    "POPULATION_GROUP_DESC":[],
+    "STATE_NAME":[],
+    "VICTIM_TYPES":[],
+    "START_DATE":"",
+    "END_DATE":"",
+    "type":"filter",
+    "groupby":['year', 'STATE_NAME']
+    }
+# init database
+database = 'hate_crime2 hc'
+# init flags
+groupby_flag = False
+filter_flag = False
+
+# init params dict
+params = {}
+
+# if type == "sum" query is to summarize
+# note: always end a sql str with a space
+# init sql strings
+query_string = "SELECT count(hc.INCIDENT_ID) as COUNT, "
+select_str = '' # thing to group by
+from_str =     " FROM " + database
+join_str = '' # conditional join
+where_str = ""
+groupby_str = " GROUP BY " # thing to group by
+order_str = " ORDER BY count DESC"
+
+# stuff we need
+four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
+year_str = "year(INCI_DT_CLEAN) as YEAR"
+where_start = " WHERE "
+# create engine
+f = open('secure/secure')
+user = f.readline().rstrip()
+pw = f.readline().rstrip()
+sql_url = f.readline().rstrip()
+sql_port = f.readline().rstrip()
+use_db = f.readline().rstrip()
+f.close()
+
+engine = create_engine('mysql://' + user + ':' + pw + '@' + sql_url + ':' + sql_port + '/' + use_db)
+
+# test
+test_sql = "SELECT %(a)s FROM hate_crime2 WHERE STATE_NAME = 'Indiana'"
+test_params = {'a':'INCI_DT_CLEAN'}
+df = pd.read_sql(test_sql, con=engine, params=test_params)
+
+
+# set select str and groupby str to groupby column
+# allow to groupby year, one of four-table columns or soemthing else
+
+if (data['groupby'] == 'year'):
+    # add year string
+    select_str = year_str
+    groupby_str += "YEAR "
+elif data['groupby'] in four_tables:
+    # set join, select and groupby strs
+    new_str = data['groupby'] + '.' + data['groupby'].upper()
+    select_str = new_str
+    join_str = "JOIN " data['groupby'] + " ON hc.INCIDENT_ID = " + data['groupby'] + ".INCIDENT_ID "
+    groupby_str += new_str
+else: # grouping by a normal column in main table, set select and groupby strs
+    select_str = data['groupby']
+    groupby_str = data['groupby']
+
+
+
+
+for column in filter_dict:
+    # check if column has a value
+    if len(filter_dict.column):
+        # loop thru it
+        for i in len(filter_dict.column):
+            # add it to params
+            params['f' + column + str(i)] = filter_dict.column[i]
+            # check if other filters have been added
+            if filter_flag:
+                filter_str += 'AND '
+            # add it to filter str
+            filter_str += column + ' = %(' + 'f' + column + str(i) + ') '
+            filter_flag = True
+            
+
+
+# "STATE_NAME = 'California'"
+
+# "AND BIAS_DESC = 'Anti-Jewish'"
+# add this 
+# query_string += sum_str
+
+
+for column in groupby_dict:
+    if groupby.column exists, ie has a length
+        # check if other filters have been added
+        if groupby_flag:
+            groupby_str += ', '
+        # add to params dict
+        params['g' + column] = groupby_dict.column   
+        # add it to filter str
+        groupby_str += column + ' = %(' + 'g' + column + ') '
+        groupby_str = True
+
+
+# assemble sql string
+query_string += select_str + from_str + join_str + groupby_str + order_str 
