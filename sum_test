@@ -18,32 +18,38 @@ data = {"AGENCY_TYPE_NAME":[],
     "START_DATE":"",
     "END_DATE":"",
     "type":"filter",
-    "groupby":['year', 'STATE_NAME']
+    "groupby":'year'
     }
+data1 = {"AGENCY_TYPE_NAME":[],
+"BIAS_DESC":[],"LOCATION_NAME":[],
+"OFFENDER_ETHNICITY":[],"OFFENDER_RACE":[],
+"OFFENSE_NAME":["Intimidation"],"POPULATION_GROUP_DESC":[],"STATE_NAME":[],
+"VICTIM_TYPES":[],"START_DATE":"2008-02-02T05:00:00.000Z","END_DATE":"","type":"filter", "groupby":'BIAS_DESC'}
 # init database
 database = 'hate_crime2 hc'
-# init flags
-groupby_flag = False
-filter_flag = False
-
-# init params dict
-params = {}
-
-# if type == "sum" query is to summarize
-# note: always end a sql str with a space
-# init sql strings
-query_string = "SELECT count(hc.INCIDENT_ID) as COUNT, "
-select_str = '' # thing to group by
-from_str =     " FROM " + database
-join_str = '' # conditional join
-where_str = ""
-groupby_str = " GROUP BY " # thing to group by
-order_str = " ORDER BY count DESC"
-
-# stuff we need
 four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
-year_str = "year(INCI_DT_CLEAN) as YEAR"
-where_start = " WHERE "
+
+data2 = {"AGENCY_TYPE_NAME":[],
+"BIAS_DESC":[],"LOCATION_NAME":[],
+"OFFENDER_ETHNICITY":[],"OFFENDER_RACE":[],
+"OFFENSE_NAME":["Intimidation"],"POPULATION_GROUP_DESC":[],"STATE_NAME":[],
+"VICTIM_TYPES":[],"START_DATE":"2008-02-02T05:00:00.000Z","END_DATE":"2008-03-02T05:00:00.000Z","type":"filter", 
+"groupby":'BIAS_DESC'}
+
+data3 = {"AGENCY_TYPE_NAME":[],
+"BIAS_DESC":[],"LOCATION_NAME":[],
+"OFFENDER_ETHNICITY":[],"OFFENDER_RACE":[],
+"OFFENSE_NAME":["Intimidation"],"POPULATION_GROUP_DESC":[],"STATE_NAME":[],
+"VICTIM_TYPES":[],"START_DATE":"2008-02-02T05:00:00.000Z","END_DATE":"2008-03-02T05:00:00.000Z","type":"filter", 
+"groupby":'PUB_AGENCY_NAME'}
+
+data4 = {"AGENCY_TYPE_NAME":[],
+"BIAS_DESC":["Anti-White"],"LOCATION_NAME":[],
+"OFFENDER_ETHNICITY":[],"OFFENDER_RACE":[],
+"OFFENSE_NAME":["Intimidation"],"POPULATION_GROUP_DESC":[],"STATE_NAME":[],
+"VICTIM_TYPES":[],"START_DATE":"2008-02-02T05:00:00.000Z","END_DATE":"2008-03-02T05:00:00.000Z","type":"filter", 
+"groupby":'PUB_AGENCY_NAME'}
+
 # create engine
 f = open('secure/secure')
 user = f.readline().rstrip()
@@ -63,58 +69,165 @@ df = pd.read_sql(test_sql, con=engine, params=test_params)
 
 # set select str and groupby str to groupby column
 # allow to groupby year, one of four-table columns or soemthing else
+def add_groupby_str(selectstr, datadict, groupbystr, joinstr):
+    if (datadict['groupby'] == 'year'):
+        # add year string
+        selectstr = year_str
+        groupbystr += "YEAR "
+    elif (datadict['groupby'].lower() in four_tables):
+        # set join, select and groupby strs
+        new_str = datadict['groupby'].lower() + '.' + datadict['groupby'].upper()
+        selectstr = new_str
+        joinstr = "JOIN " + datadict['groupby'].lower() + " ON hc.INCIDENT_ID = " + datadict['groupby'].lower() + ".INCIDENT_ID "
+        groupbystr += new_str
+    else: # grouping by a normal column in main table, set select and groupby strs
+        selectstr = datadict['groupby']
+        groupbystr += datadict['groupby'] + ' '
+    return [selectstr, groupbystr, joinstr]
 
-if (data['groupby'] == 'year'):
-    # add year string
-    select_str = year_str
-    groupby_str += "YEAR "
-elif data['groupby'] in four_tables:
-    # set join, select and groupby strs
-    new_str = data['groupby'] + '.' + data['groupby'].upper()
-    select_str = new_str
-    join_str = "JOIN " data['groupby'] + " ON hc.INCIDENT_ID = " + data['groupby'] + ".INCIDENT_ID "
-    groupby_str += new_str
-else: # grouping by a normal column in main table, set select and groupby strs
-    select_str = data['groupby']
-    groupby_str = data['groupby']
+# ex
+# works with first set of test data
+
+def add_where_str(filterdict, wherestr, wherestart, paramsdict, filterflag):
+    """ 
+    this is updating the where_str, params_dict and (though maybe unecessary) filterflag 
+    when this starts where_str = "" and where_start = " WHERE "
+    ex product: 
+    WHERE 
+    (STATE_NAME = 'Indiana' OR STATE_NAME = 'Michigan') 
+    AND 
+    (AGENCY_TYPE_NAME = 'State Police')
+    """
+    skip_columns = ['START_DATE', 'END_DATE', 'groupby', 'type']
+    if len(filterdict['START_DATE']) or len(filterdict['END_DATE']):
+        filterflag = True
+        wherestr += wherestart
+        if len(filterdict['START_DATE']) and len(filterdict['END_DATE']):
+            paramsdict['date1'] = pd.to_datetime(filterdict['START_DATE']).date()
+            paramsdict['date2'] = pd.to_datetime(filterdict['END_DATE']).date()
+            wherestr += " INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s )"
+        elif len(filterdict['START_DATE']):
+            paramsdict['date1'] = pd.to_datetime(filterdict['START_DATE']).date()
+            wherestr += " INCI_DT_CLEAN >= %(date1)s )"
+        elif len(filterdict['END_DATE']):
+            paramsdict['date2'] = pd.to_datetime(filterdict['END_DATE']).date()
+            wherestr += " INCI_DT_CLEAN <= %(date2)s )"
+    for column in filterdict:
+        if (column not in skip_columns) and (len(filterdict[column])):
+            # there are values of this column, look at them
+            if filterflag == False:
+                # if there are no filters yet 
+                wherestr += wherestart # start the filter string
+                filterflag = True # note filter string is started
+            else: # add an AND bc we're filtering by a second column
+                wherestr += "AND ("
+            # loop thru the column's list to get all values we're filtering by
+            for i, item in enumerate(filterdict[column]):
+                # add it to params, key is fcolumnNamei, value is ith item in the column's list
+                # check if other filters have been added
+                if i > 0:
+                    wherestr += "OR "
+                # add it to filter str
+                if column.lower() in four_tables:
+                    #OFFENSE_NAME LIKE  '%Aggravated Assault%'
+                    paramsdict['f' + column + str(i)] = '%' + item + '%' 
+                    wherestr += column.upper() + " LIKE %(f" + column + str(i) + ")s "
+                else:
+                    paramsdict['f' + column + str(i)] = item
+                    wherestr += column + ' = %(' + 'f' + column + str(i) + ')s '
+            wherestr += ") "
+    return [wherestr, paramsdict, filterflag]
+
+# ex
+# can add filtering on four tables column
+# like: WHERE INCIDENT_ID
+
+# init flags
+groupby_flag = False
+filter_flag = False
+
+# init params dict
+params = {}
+where_start = 'WHERE ('
+
+# if type == "sum" query is to summarize
+# note: always end a sql str with a space
+# init sql strings
+query_string = "SELECT count(hc.INCIDENT_ID) as COUNT, "
+select_str = '' # thing to group by
+from_str =     " FROM " + database + " "
+join_str = '' # conditional join
+where_str = ""
+groupby_str = " GROUP BY " # thing to group by
+order_str = " ORDER BY count DESC"
 
 
-
-
-for column in filter_dict:
-    # check if column has a value
-    if len(filter_dict.column):
-        # loop thru it
-        for i in len(filter_dict.column):
-            # add it to params
-            params['f' + column + str(i)] = filter_dict.column[i]
-            # check if other filters have been added
-            if filter_flag:
-                filter_str += 'AND '
-            # add it to filter str
-            filter_str += column + ' = %(' + 'f' + column + str(i) + ') '
-            filter_flag = True
-            
-
-
-# "STATE_NAME = 'California'"
-
-# "AND BIAS_DESC = 'Anti-Jewish'"
-# add this 
-# query_string += sum_str
-
-
-for column in groupby_dict:
-    if groupby.column exists, ie has a length
-        # check if other filters have been added
-        if groupby_flag:
-            groupby_str += ', '
-        # add to params dict
-        params['g' + column] = groupby_dict.column   
-        # add it to filter str
-        groupby_str += column + ' = %(' + 'g' + column + ') '
-        groupby_str = True
-
+select_str, groupby_str, join_str = add_groupby_str(select_str, data4, groupby_str, join_str)
+where_str, params, filter_flag = add_where_str(data4, where_str, where_start, params, filter_flag)
 
 # assemble sql string
-query_string += select_str + from_str + join_str + groupby_str + order_str 
+query_string += select_str + from_str + join_str + where_str + groupby_str + order_str 
+
+df = pd.read_sql(query_string, con=engine, params=params)
+# works with test data
+
+# SELECT count(hc.INCIDENT_ID) as COUNT, year(INCI_DT_CLEAN) as YEAR 
+# FROM hate_crime2 hcWHERE (BIAS_DESC = 'Anti-White' ) AND (OFFENSE_NAME = 'Aggravated Assault' )  
+# GROUP BY YEAR  
+# # ORDER BY count DESC'
+# ran all these
+# ALTER TABLE `victim_types` ADD `ID` INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+
+# ALTER TABLE `bias_desc` ADD `ID` INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+
+# ALTER TABLE `location_name` ADD `ID` INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+
+# ALTER TABLE `offense_name` ADD `ID` INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST;
+
+# 'SELECT 
+#     count(hc.INCIDENT_ID) as COUNT, 
+#     PUB_AGENCY_NAME 
+# FROM hate_crime2 hc 
+# WHERE ( 
+#         INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s 
+#     ) AND (
+#         hc.INCIDENT_ID in ( 
+#             SELECT INCIDENT_ID 
+#             FROM bias_desc 
+#             WHERE BIAS_DESC = %(fBIAS_DESC0)s 
+#         )
+#     ) AND (
+#         hc.INCIDENT_ID in ( 
+#             SELECT INCIDENT_ID 
+#             FROM offense_name 
+#             WHERE OFFENSE_NAME = %(fOFFENSE_NAME0)s 
+#         )
+#     )  
+# GROUP BY PUB_AGENCY_NAME  
+# ORDER BY count DESC'
+
+# 'SELECT 
+#     count(hc.INCIDENT_ID) as COUNT, 
+#     PUB_AGENCY_NAME 
+# FROM hate_crime2 hc 
+# WHERE (
+#         BIAS_DESC LIKE '%Anti-White%' 
+#         OR
+#         BIAS_DESC LIKE '%Anti-Black%'
+#     ) AND (
+#         OFFENSE_NAME LIKE  '%Aggravated Assault%'
+#         )
+    
+# GROUP BY PUB_AGENCY_NAME  
+# ORDER BY count DESC
+# LIMIT 10'
+
+# 'SELECT 
+#     count(hc.INCIDENT_ID) as COUNT, 
+#     PUB_AGENCY_NAME FROM hate_crime2 hc 
+# WHERE ( 
+#     INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s 
+#     )AND (
+#     BIAS_DESC LIKE %(fBIAS_DESC0)s )
+#     ) AND (
+#     OFFENSE_NAME LIKE %(fOFFENSE_NAME0)s ))  GROUP BY PUB_AGENCY_NAME  ORDER BY count DESC'

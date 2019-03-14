@@ -17,15 +17,6 @@ data = json.loads(page_data.getvalue("data"))
 
 print(data['type'])
 
-# for key in page_data.keys():
-#         variable = str(key)
-#         value = str(page_data.getvalue(variable))
-
-# # # if page_data.has_key("type"):
-# if page_data["type"] == "test":
-# 	print("it worked")
-# else:
-# 	print("failure")
 
 
 
