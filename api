@@ -6,7 +6,291 @@ from sqlalchemy import create_engine
 from datetime import datetime
 
 dt = datetime.now()
+now = dt.microsecond#!/usr/bin/env python3
+
+import sys, cgi, urllib, json
+import pandas as pd
+from sqlalchemy import create_engine
+from datetime import datetime
+
+dt = datetime.now()
 now = dt.microsecond
+now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
+js_file = "results/" + str(now) + ".csv"
+# create engine
+f = open('secure/secure')
+user = f.readline().rstrip()
+pw = f.readline().rstrip()
+sql_url = f.readline().rstrip()
+sql_port = f.readline().rstrip()
+use_db = f.readline().rstrip()
+f.close()
+
+engine = create_engine('mysql://' + user + ':' + pw + '@' + sql_url + ':' + sql_port + '/' + use_db)
+
+connection = engine.connect()
+query_sql = ""
+# sql statements
+
+# start new stuff 
+page_data = cgi.FieldStorage()
+
+# data = {"AGENCY_TYPE_NAME":[],"BIAS_DESC":[],"LOCATION_NAME":[],"OFFENDER_ETHNICITY":[],"OFFENDER_RACE":[],"OFFENSE_NAME":[],"POPULATION_GROUP_DESC":[],"STATE_NAME":[],"VICTIM_TYPES":[],"START_DATE":"2008-02-02T05:00:00.000Z","END_DATE":"2009-02-02T05:00:00.000Z","COLUMN_NAME":"BIAS_DESC","type":"sum"}
+# grouping by COLUMN_NAME works when I put in data y like above, but 
+#  it doesn't work when I send data via the webpage and have type = sum, 
+data = json.loads(page_data.getvalue("data"))
+print("Content-type: text/html\n\n")
+# print(data['type'])
+
+request_type = data['type']
+# print(request_type)
+autofill_columns = ['STATE_NAME',
+                    'AGENCY_TYPE_NAME',
+                    'POPULATION_GROUP_DESC',
+                    'OFFENDER_RACE',
+                    'OFFENDER_ETHNICITY',
+                    'OFFENSE_NAME ',
+                    ]
+params = {}
+column_flag = False
+date_flag = False
+
+four_tables = ['bias_desc', 'location_name', 'offense_name', 'victim_types']
+
+main_table = 'hate_crime2'
+database = 'hate_crime2 hc'
+
+def jsonify(somestring):
+    new_string = somestring[1:]
+    new_string = new_string[:-1]
+    new_string += ","
+    return new_string
+
+def loop_tables(table, data_obj):
+    # new_sql = ''
+    if len(data_obj[table.upper()]) > 0:
+        table_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + table.upper() + " IN ("
+        sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(table, data_obj, df)
+        table_sql += new_bit[:-2] + ")"
+        table_df = pd.read_sql(table_sql, con=engine)
+        return set(table_df.INCIDENT_ID)
+    else:
+        return set()
+
+def loop_columns(column, data_obj):
+    if len(data_obj[column.upper()]) > 0:
+        column_sql = "SELECT INCIDENT_ID FROM " + main_table + " WHERE " + column.upper() + " IN ("
+        # new_sql += "WHERE " + table.upper() + " "
+        sql = "SELECT DISTINCT " + column.upper() + " FROM " + main_table + ";"
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(column, data_obj, df)
+        column_sql += new_bit[:-2] + ")"
+        column_df = pd.read_sql(column_sql, con=engine)
+        return set(column_df.INCIDENT_ID)
+    else:
+        return set()
+
+def loop_stuff(column, data_obj):
+    table = ''
+    if column in four_tables:
+        table = column
+    else:
+        table = main_table
+    # print(column)
+    if len(data_obj[column.upper()]) > 0:
+        column_sql = "SELECT INCIDENT_ID FROM " + table + " WHERE " + column.upper() + " IN ("
+        sql = "SELECT DISTINCT " + column.upper() + " FROM " + main_table + ";"
+        # print(column_sql) # looks ok
+        # print(sql) # looks ok
+        df = pd.read_sql(sql, con=engine)
+        new_bit = loop_data(column, data_obj, df)
+        column_sql += new_bit[:-2] + ")"
+        column_df = pd.read_sql(column_sql, con=engine)
+        return set(column_df.INCIDENT_ID)
+    else:
+        return set()
+
+def loop_data(column, data_obj, some_df):
+    new_sql = ''     
+    for desc in data_obj[column.upper()]:
+        big_table = column.upper()
+        row = some_df[some_df[big_table] == desc][big_table]
+        term = row.iloc[0]
+        new_sql += " \'" + term  + "\', "
+    return new_sql
+
+# for analysis
+def add_groupby_str(selectstr, datadict, groupbystr, joinstr, yearstr):
+    if (datadict['COLUMN_NAME'] == 'INCIDENT_YEAR'):
+        # print('test')
+        # add year string
+        selectstr = year_str
+        groupbystr += "YEAR "
+    elif (datadict['COLUMN_NAME'].lower() in four_tables):
+        # set join, select and groupby strs
+        new_str = datadict['COLUMN_NAME'].lower() + '.' + datadict['COLUMN_NAME'].upper()
+        selectstr = new_str
+        joinstr = "JOIN " + datadict['COLUMN_NAME'].lower() + " ON hc.INCIDENT_ID = " + datadict['COLUMN_NAME'].lower() + ".INCIDENT_ID "
+        groupbystr += new_str
+    else: # grouping by a normal column in main table, set select and groupby strs
+        selectstr = datadict['COLUMN_NAME']
+        groupbystr += datadict['COLUMN_NAME'] + ' '
+    return [selectstr, groupbystr, joinstr]
+
+# for analysis
+
+def add_where_str(filterdict, wherestr, wherestart, paramsdict, filterflag):
+    """ 
+    this is updating the where_str, params_dict and (though maybe unecessary) filterflag 
+    when this starts where_str = "" and where_start = " WHERE "
+    ex product: 
+    WHERE 
+    (STATE_NAME = 'Indiana' OR STATE_NAME = 'Michigan') 
+    AND 
+    (AGENCY_TYPE_NAME = 'State Police')
+    """
+    skip_columns = ['START_DATE', 'END_DATE', 'COLUMN_NAME', 'type']
+    if len(filterdict['START_DATE']) or len(filterdict['END_DATE']):
+        filterflag = True
+        wherestr += wherestart
+        if len(filterdict['START_DATE']) and len(filterdict['END_DATE']):
+            paramsdict['date1'] = pd.to_datetime(filterdict['START_DATE']).date()
+            paramsdict['date2'] = pd.to_datetime(filterdict['END_DATE']).date()
+            wherestr += " INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s )"
+        elif len(filterdict['START_DATE']):
+            paramsdict['date1'] = pd.to_datetime(filterdict['START_DATE']).date()
+            wherestr += " INCI_DT_CLEAN >= %(date1)s )"
+        elif len(filterdict['END_DATE']):
+            paramsdict['date2'] = pd.to_datetime(filterdict['END_DATE']).date()
+            wherestr += " INCI_DT_CLEAN <= %(date2)s )"
+    for column in filterdict:
+        if (column not in skip_columns) and (len(filterdict[column])):
+            # there are values of this column, look at them
+            if filterflag == False:
+                # if there are no filters yet 
+                wherestr += wherestart # start the filter string
+                filterflag = True # note filter string is started
+            else: # add an AND bc we're filtering by a second column
+                wherestr += "AND ("
+            # loop thru the column's list to get all values we're filtering by
+            for i, item in enumerate(filterdict[column]):
+                # add it to params, key is fcolumnNamei, value is ith item in the column's list
+                # check if other filters have been added
+                if i > 0:
+                    wherestr += "OR "
+                # add it to filter str
+                if column.lower() in four_tables:
+                    #OFFENSE_NAME LIKE  '%Aggravated Assault%'
+                    paramsdict['f' + column + str(i)] = '%' + item + '%' 
+                    wherestr += column.upper() + " LIKE %(f" + column + str(i) + ")s "
+                else:
+                    paramsdict['f' + column + str(i)] = item
+                    wherestr += column + ' = %(' + 'f' + column + str(i) + ')s '
+            wherestr += ") "
+    return [wherestr, paramsdict, filterflag]
+
+if request_type == "start":
+    # get all the data to start
+    # print("Content-type: text/html\n\n")
+    json_str = "{"
+    sql = "SELECT COLUMN_NAME from INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'hate_crimes' and TABLE_NAME = 'hate_crime';"
+    df = pd.read_sql(sql, con=engine)
+    json_str += jsonify(df.to_json())
+    for column in autofill_columns:
+        sql = "SELECT DISTINCT " + column + " FROM " + main_table + ";"
+        df = pd.read_sql(sql, con=engine)
+        json_str += jsonify(df.to_json())
+    for table in four_tables:
+        sql = "SELECT DISTINCT " + table.upper() + " FROM " + table + ";"
+        df = pd.read_sql(sql, con=engine)
+        json_str += jsonify(df.to_json())
+    json_str = json_str[:-1] + "}"
+    print(json_str)
+elif request_type == "test": 
+    sql = "select * from " + main_table + " limit 20"
+# main function of api!!!
+elif request_type == "filter":
+    # start off right
+    # print("Content-type: text/html\n\n")
+    # init query string
+    query_sql += "select * from " + main_table + " "
+    table_sets = []
+    columns_list = autofill_columns[:-1] + four_tables
+    column_flag = False
+    date_flag = False
+    for col in columns_list:
+        if len(data[col.upper()]):
+            column_flag = True
+            break
+    # print(len(columns_list)) # prints 10 which is good
+    if column_flag:
+        query_sql += "WHERE INCIDENT_ID IN ("
+        for table in columns_list: # loop through four separate tables to get ids of matching records
+            # print(table) #prints the 10 names OK
+            new_set = loop_stuff(table, data)
+            # print(len(new_set))
+            if len(new_set) > 0:
+                table_sets.append(new_set)
+        id_set = set.intersection(*table_sets)
+        # print(len(id_set))
+        for id in id_set:
+            query_sql += " \'" + str(id)  + "\', "
+        query_sql = query_sql[:-2] + " ) "
+    if len(data['START_DATE']) or len(data['END_DATE']):
+        date_flag = True
+        if column_flag:
+            query_sql = query_sql + " AND"
+        else:
+            query_sql = query_sql + " WHERE"
+        if len(data['START_DATE']) and len(data['END_DATE']):
+            params['date1'] = pd.to_datetime(data['START_DATE']).date()
+            params['date2'] = pd.to_datetime(data['END_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN BETWEEN %(date1)s AND %(date2)s "
+        elif len(data['START_DATE']):
+            params['date1'] = pd.to_datetime(data['START_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN >= %(date1)s "
+        elif len(data['END_DATE']):
+            params['date2'] = pd.to_datetime(data['END_DATE']).date()
+            query_sql = query_sql + " INCI_DT_CLEAN <= %(date2)s "
+    query_sql = query_sql + " LIMIT 1000"
+elif request_type == "sum":
+    # init flags
+    groupby_flag = False
+    filter_flag = False
+    # init params dict
+    # init sql strings
+    where_start = 'WHERE ('
+    query_string = "SELECT count(hc.INCIDENT_ID) as COUNT, "
+    select_str = '' # thing to group by
+    from_str =     " FROM " + database + " "
+    join_str = '' # conditional join
+    where_str = ""
+    groupby_str = " GROUP BY " # thing to group by
+    order_str = " ORDER BY count DESC"
+    year_str = "year(INCI_DT_CLEAN) as YEAR "
+    #parse data to assemble strings
+    select_str, groupby_str, join_str = add_groupby_str(select_str, data, groupby_str, join_str, year_str)
+    where_str, params, filter_flag = add_where_str(data, where_str, where_start, params, filter_flag)
+    query_string += select_str + from_str + join_str + where_str + groupby_str + order_str 
+    query_sql = query_string
+else:
+    print('test')
+    sql = "select COUNT(INCIDENT_ID) as COUNT from " + main_table + ";"
+
+if request_type != "start":
+    # query_sql += " LIMIT 1000"
+    if(date_flag or (request_type == "sum")):
+        df = pd.read_sql(query_sql, con=engine, params=params)
+    else:
+        df = pd.read_sql(query_sql, con=engine)
+    df.to_csv(now_file, index=False)
+
+#     # print("Content-type: text/html\n\n")
+#     # print(page_data.getvalue("type"))
+    print(js_file)
+
 now_file = "../../htdocs/datadownlow/results/" + str(now) + ".csv"
 js_file = "results/" + str(now) + ".csv"
 # create engine
